@@ -41,18 +41,22 @@ This project automates the provisioning of EC2 instances on AWS using Terraform.
 ## 🛠️ Prerequisites
 
 - [Terraform](https://developer.hashicorp.com/terraform/downloads) installed
-- AWS credentials configured
-- Public IP whitelisted in '*.tfvars' 
+- AWS credentials configured or export ```AWS_SHARED_CREDENTIALS_FILE="/path/to/your/custom/credentials/file"
+ &&  export AWS_PROFILE="your_profile_name"```
+
+- Public IP whitelisted in '*.tfvars' (Optional :- if you want to connect to the EC2 instances.)
 
 ---
 
-## 🧱 Deploy Infrastructure
+## 🧱 Deploy Infrastructure + 
 
 Run the deployment script with the desired stage:
 
 ```bash
-./deploy.sh Dev    # or ./deploy.sh Prod
+./deploy.sh Dev    # or ./deploy.sh Prod 
 ```
+````(This script will call the terraform + deployment of the application)````
+
 
 ---
 # 🚀 EC2 Initialization Script – `user_data.sh`
