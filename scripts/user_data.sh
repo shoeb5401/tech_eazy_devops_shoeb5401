@@ -14,15 +14,12 @@ cd /home/ubuntu
 
 git clone https://github.com/techeazy-consulting/techeazy-devops.git
 
-cd techeazy-devops/src/main/resources
+cd techeazy-devops
 
-sudo sed -i 's/server.port=80/server.port=8080/' application.properties
-
-cd /home/ubuntu/techeazy-devops
-mvn clean package
+sudo mvn clean package
 
 cd target
 
-nohup java -jar techeazy-devops-0.0.1-SNAPSHOT.jar  > /home/ubuntu/app.log 2>&1 &
+sudo java -jar techeazy-devops-0.0.1-SNAPSHOT.jar 
 
 nohup shutdown -h +60 &
