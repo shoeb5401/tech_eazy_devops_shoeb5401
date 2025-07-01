@@ -4,6 +4,8 @@ ami_id        = "ami-0f918f7e67a3323f0"
 instance_type = "t2.micro"
 key_name      = "Assignment-Dev"
 volume_size   = 10
-my_ip         = "152.58.42.218/32"
+my_ip         = "152.58.0.31/32"
 stage         = "Dev"
-
+s3_readonly_role_name   = "dev-s3-readonly-role"
+s3_writeonly_role_name  = "dev-s3-writeonly-role"
+s3_bucket_name          = "dev-app-log-bucket-3084"
