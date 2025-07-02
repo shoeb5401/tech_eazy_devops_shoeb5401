@@ -1,6 +1,6 @@
 # 🚀 DevOps EC2 Automation with Terraform
 
-This project automates the provisioning of EC2 instances on AWS using Terraform. It supports multi-environment deployments (`Dev`, `Prod`) in a single script and deploys a Spring Boot application (`techeazy-devops`) with secure SSH access and auto-shutdown logic.
+This project automates the provisioning of EC2 instances on AWS using Terraform. It supports multi-environment deployments (`Dev`, `Prod`) and securely deploys a Spring Boot application (`techeazy-devops`). It includes SSH key pair creation, auto-shutdown logic, and automated log uploads to a private S3 bucket using IAM roles.
 
 ---
 
@@ -12,7 +12,8 @@ This project automates the provisioning of EC2 instances on AWS using Terraform.
 │   └── techeazy-devops-0.0.1-SNAPSHOT.jar     # Compiled Spring Boot JAR
 ├── README.md                                  # Project documentation
 ├── scripts/
-│   └── user_data.sh                           # EC2 bootstrap script
+│   ├── upload_user_data.sh.tpl                # EC2 bootstrap script for log upload (write-only)
+│   └── download_user_data.sh.tpl              # EC2 bootstrap script for log download (read-only)
 └── terraform/
     ├── deploy.sh                              # Stage-aware deployment script
     ├── dev_config.tfvars                      # Dev environment config
@@ -24,63 +25,115 @@ This project automates the provisioning of EC2 instances on AWS using Terraform.
     └── terraform.tfstate.backup               # Backup state (auto-generated)
 ```
 
-    
 ---
 
-## ⚙️ Features
+## ⚙️ Key Features
 
-- 🔁 Stage-based config loading (`Dev`, `Prod`)
-- 🔐 Automatic SSH key pair creation
-- 🛡️ Security group restricts SSH to your IP and Ports are configured
-- 💾 Custom disk, AMI, instance type per stage
-- ⏲️ EC2 auto-shutdown after 1 hours
-- 🚀 Single Script Spring Boot JAR deployment support
+* ✅ **Multi-Environment Support**: Seamlessly deploy to `Dev` or `Prod` using stage-aware configs.
+* 🔐 **SSH Key Pair Generation**: 4096-bit RSA keys generated and saved locally.
+* 🛡️ **Restricted Security Group**:
+
+  * SSH access limited to your public IP
+  * Open port 80 for HTTP traffic
+* 🖥️ **Dual EC2 Deployment**:
+
+  * **Write-only instance** uploads logs to S3
+  * **Read-only instance** can securely download and view logs
+* 💾 **Custom EBS, AMI, and instance type** based on environment
+* ☁️ **S3 Bucket Lifecycle Policy**: Auto-deletes logs older than 7 days
+* 📜 **Fully Automated App Setup**:
+
+  * Installs dependencies
+  * Clones and builds Spring Boot app
+  * Runs app in background using `nohup`
+* ☁️ **S3 Upload on Shutdown**:
+
+  * Script and systemd service ensures graceful upload of logs to S3
+* ⏱️ **Auto-Termination**: Instance shuts down automatically after 60 minutes to save cost
 
 ---
 
-## 🛠️ Prerequisites
+## 🧰 Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) installed
-- AWS credentials configured or export ```AWS_SHARED_CREDENTIALS_FILE="/path/to/your/custom/credentials/file"
- &&  export AWS_PROFILE="your_profile_name"```
-
-- Public IP whitelisted in '*.tfvars' (Optional :- if you want to connect to the EC2 instances.)
-
----
-
-## 🧱 Deploy Infrastructure + 
-
-Run the deployment script with the desired stage:
+* [Terraform](https://developer.hashicorp.com/terraform/downloads)
+* AWS credentials configured in default or custom profile
 
 ```bash
-./deploy.sh Dev    # or ./deploy.sh Prod 
+export AWS_SHARED_CREDENTIALS_FILE="/path/to/credentials"
+export AWS_PROFILE="your_profile_name"
 ```
-````(This script will call the terraform + deployment of the application)````
 
-
----
-# 🚀 EC2 Initialization Script – `user_data.sh`
-
-This script automates the setup and deployment of the `techeazy-devops` Spring Boot application on an AWS EC2 instance. It is intended to be used as a **user data script** in Terraform or directly in EC2 launch configuration.
+* Add your public IP in `*.tfvars` file (Optional, for SSH access)
 
 ---
 
-## 📜 File: `scripts/user_data.sh`
+## 🧱 IAM Roles & Access
 
-### 🎯 Purpose
+| Role        | Access Type | Attached To       | Permissions                     |
+| ----------- | ----------- | ----------------- | ------------------------------- |
+| `writeonly` | Write-only  | EC2 instance      | `s3:PutObject` only             |
+| `readonly`  | Read-only   | EC2 instance/user | `s3:GetObject`, `s3:ListBucket` |
 
-Automates the following on EC2 launch:
-- System updates and required package installations
-- Git repository cloning
-- Port reconfiguration
-- Maven build
-- Application launch in background
-- Automatic shutdown after 1 hour to reduce cost
+* IAM policies prevent privilege escalation (write role cannot read)
+* IAM instance profiles are used to attach roles to EC2 securely
+
+---
+
+## 🚀 Deploying Infrastructure & App
+
+Run the stage-specific deployment script:
+
+```bash
+cd terraform/
+./deploy.sh Dev     # or ./deploy.sh Prod
+```
+
+This will:
+
+* Inject correct values into `user_data.sh.tpl`
+* Provision EC2, S3, IAM, and networking
+* Launch the app and enable automated log handling
+
+---
+
+## 🔧 EC2 Bootstrap (user\_data)
+
+### Actions Performed (write-only EC2):
+
+* System update + install: JDK 21, Maven, AWS CLI
+* Clone and build app from GitHub
+* Run `.jar` in background
+* Configure `systemd` shutdown hook to:
+
+  * Upload `/home/ubuntu/script.log` to S3
+  * Auto-shutdown after 60 minutes
+
+```bash
+aws s3 cp /home/ubuntu/script.log s3://<bucket-name>/app/logs/
+```
+
+---
+
+## 🔎 Viewing Logs from S3
+
+Use your `readonly` credentials or EC2 instance to list and download logs:
+
+```bash
+aws configure --profile readonly
+aws s3 ls s3://<your-bucket-name>/app/logs/ --profile readonly
+aws s3 cp s3://<your-bucket-name>/app/logs/script.log . --profile readonly
+```
+
+> Ensure that `readonly` IAM role or profile is used to avoid unauthorized access.
 
 ---
 
 
+## 💡 Tips
 
+* For **secure key management**, `.pem` files are saved locally with `0400` permissions.
+* Enable logging in `upload-script-log.service` to debug uploads on shutdown.
+* Use `terraform destroy` to clean up infra (includes force destroy on bucket).
 
-
+---
 
