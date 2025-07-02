@@ -6,4 +6,6 @@ key_name      = "Assignment-Prod"
 volume_size   = 20
 my_ip         = "152.58.2.25/32"
 stage         = "Prod"
-
+s3_readonly_role_name   = "prod-s3-readonly-role"
+s3_writeonly_role_name  = "prod-s3-writeonly-role"
+s3_bucket_name          = "prod-app-log-bucket-3084"

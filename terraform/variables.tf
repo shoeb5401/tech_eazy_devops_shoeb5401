@@ -39,3 +39,25 @@ variable "stage" {
   default     = "Dev"
 }
 
+variable "s3_readonly_role_name" {
+  description = "Name of the read-only role"
+  type        = string
+  default = "s3-readonly-roles"
+}
+
+variable "s3_writeonly_role_name" {
+  description = "Name of the write-only role"
+  type        = string
+  default = "s3-writeonly-roles"
+}
+
+
+variable "s3_bucket_name" {
+  description = "S3 bucket name for logs"
+  type        = string
+  
+  validation {
+    condition     = length(var.s3_bucket_name) > 0
+    error_message = "S3 bucket name must not be empty."
+  }
+}
