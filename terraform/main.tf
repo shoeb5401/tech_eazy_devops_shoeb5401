@@ -1,3 +1,4 @@
+
 provider "aws" {
   region = var.region
 }
@@ -25,9 +26,9 @@ resource "aws_instance" "devops_instance" {
   instance_type = var.instance_type
   key_name      = aws_key_pair.assignment.key_name
   security_groups = [aws_security_group.ssh_restricted.name]
-  user_data = file("${path.module}/../scripts/user_data.sh")
+  user_data = templatefile("${path.module}/../scripts/user_data.sh.tpl",{s3_bucket_name = var.s3_bucket_name})
   iam_instance_profile = aws_iam_instance_profile.writeonly_profile.name
-  depends_on = [aws_iam_instance_profile.writeonly_profile]
+  depends_on = [aws_iam_instance_profile.writeonly_profile,aws_s3_bucket.log_bucket]
   root_block_device {
     volume_size = var.volume_size
     volume_type = "gp3"
@@ -136,7 +137,6 @@ resource "aws_iam_instance_profile" "writeonly_profile" {
   role = aws_iam_role.s3_writeonly_role.name
 }
 
-
 # Private S3 Bucket
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.s3_bucket_name
@@ -144,7 +144,28 @@ resource "aws_s3_bucket" "log_bucket" {
   tags = {
     Environment = var.stage
   }
+    force_destroy = true  # Optional: only for auto-cleanup during destroy
+
 }
+
+# S3 Bucket Lifecycle Configuration
+resource "aws_s3_bucket_lifecycle_configuration" "log_lifecycle" {
+  bucket = aws_s3_bucket.log_bucket.id
+
+  rule {
+    id     = "delete-logs-after-7-days"
+    status = "Enabled"
+
+    expiration {
+      days = 7
+    }
+
+    filter {
+      prefix = "app/logs/"
+    }
+  }
+}
+
 
 resource "aws_s3_bucket_public_access_block" "block_public" {
   bucket = aws_s3_bucket.log_bucket.id
