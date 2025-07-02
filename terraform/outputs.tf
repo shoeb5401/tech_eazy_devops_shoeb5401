@@ -1,9 +1,17 @@
-output "instance_id" {
-  value = aws_instance.devops_instance.id
+output "writeonly_instance_id" {
+  value = aws_instance.writeonly_instance.id
 }
 
-output "instance_public_ip" {
-  value = aws_instance.devops_instance.public_ip
+output "writeonly_instance_public_ip" {
+  value = aws_instance.writeonly_instance.public_ip
+}
+
+output "readonly_instance_id" {
+  value = aws_instance.readonly_instance.id
+}
+
+output "readonly_instance_public_ip" {
+  value = aws_instance.readonly_instance.public_ip
 }
 
 output "private_key_file" {
