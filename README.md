@@ -1,6 +1,6 @@
 # 🚀 DevOps EC2 Automation with Terraform
 
-This project automates the provisioning of EC2 instances on AWS using Terraform. It supports multi-environment deployments (`Dev`, `Prod`) in a single script and deploys a Spring Boot application (`techeazy-devops`) with secure SSH access, auto-shutdown logic, and S3 log upload capabilities.
+This project automates the provisioning of EC2 instances on AWS using Terraform. It supports multi-environment deployments (`Dev`, `Prod`) and securely deploys a Spring Boot application (`techeazy-devops`). It includes SSH key pair creation, auto-shutdown logic, and automated log uploads to a private S3 bucket using IAM roles.
 
 ---
 
@@ -12,7 +12,8 @@ This project automates the provisioning of EC2 instances on AWS using Terraform.
 │   └── techeazy-devops-0.0.1-SNAPSHOT.jar     # Compiled Spring Boot JAR
 ├── README.md                                  # Project documentation
 ├── scripts/
-│   └── user_data.sh.tpl                       # EC2 bootstrap script template with S3 injection
+│   ├── upload_user_data.sh.tpl                # EC2 bootstrap script for log upload (write-only)
+│   └── download_user_data.sh.tpl              # EC2 bootstrap script for log download (read-only)
 └── terraform/
     ├── deploy.sh                              # Stage-aware deployment script
     ├── dev_config.tfvars                      # Dev environment config
@@ -26,78 +27,113 @@ This project automates the provisioning of EC2 instances on AWS using Terraform.
 
 ---
 
-## ⚙️ Features
+## ⚙️ Key Features
 
-- 🔁 Stage-based config loading (`Dev`, `Prod`)
-- 🔐 Automatic SSH key pair generation (4096-bit RSA)
-- 🛡️ Security group restricts SSH to user IP and opens port 80 for HTTP
-- 📀 Custom EBS volume, AMI, and instance type per environment
-- ⏲️ EC2 auto-shutdown after 1 hour
-- 🚀 Fully automated Spring Boot JAR build and background launch
-- 📃 Upload logs to private S3 bucket with **write-only IAM role** from EC2
-- 👁️ Read logs securely using **read-only IAM role** from other EC2 machine.
-- ⚡ Lifecycle policy to auto-delete logs from S3 after 7 days
+* ✅ **Multi-Environment Support**: Seamlessly deploy to `Dev` or `Prod` using stage-aware configs.
+* 🔐 **SSH Key Pair Generation**: 4096-bit RSA keys generated and saved locally.
+* 🛡️ **Restricted Security Group**:
+
+  * SSH access limited to your public IP
+  * Open port 80 for HTTP traffic
+* 🖥️ **Dual EC2 Deployment**:
+
+  * **Write-only instance** uploads logs to S3
+  * **Read-only instance** can securely download and view logs
+* 💾 **Custom EBS, AMI, and instance type** based on environment
+* ☁️ **S3 Bucket Lifecycle Policy**: Auto-deletes logs older than 7 days
+* 📜 **Fully Automated App Setup**:
+
+  * Installs dependencies
+  * Clones and builds Spring Boot app
+  * Runs app in background using `nohup`
+* ☁️ **S3 Upload on Shutdown**:
+
+  * Script and systemd service ensures graceful upload of logs to S3
+* ⏱️ **Auto-Termination**: Instance shuts down automatically after 60 minutes to save cost
 
 ---
 
-## 🛠️ Prerequisites
+## 🧰 Prerequisites
 
-- [Terraform](https://developer.hashicorp.com/terraform/downloads) installed
-- AWS credentials configured, or export:
+* [Terraform](https://developer.hashicorp.com/terraform/downloads)
+* AWS credentials configured in default or custom profile
 
 ```bash
-export AWS_SHARED_CREDENTIALS_FILE="/path/to/your/custom/credentials/file"
+export AWS_SHARED_CREDENTIALS_FILE="/path/to/credentials"
 export AWS_PROFILE="your_profile_name"
 ```
 
-- Public IP whitelisted in '\*.tfvars' (Optional: if you want SSH access to EC2)
+* Add your public IP in `*.tfvars` file (Optional, for SSH access)
 
 ---
 
-## 🧱️ IAM Roles
+## 🧱 IAM Roles & Access
 
-- `writeonly`: Attached to EC2 for uploading logs to S3 (PutObject only)
-- `readonly`: Used locally for listing and viewing logs from S3 (ListBucket, GetObject)
+| Role        | Access Type | Attached To       | Permissions                     |
+| ----------- | ----------- | ----------------- | ------------------------------- |
+| `writeonly` | Write-only  | EC2 instance      | `s3:PutObject` only             |
+| `readonly`  | Read-only   | EC2 instance/user | `s3:GetObject`, `s3:ListBucket` |
+
+* IAM policies prevent privilege escalation (write role cannot read)
+* IAM instance profiles are used to attach roles to EC2 securely
 
 ---
 
-## 🧰 Deploy Infrastructure + App
+## 🚀 Deploying Infrastructure & App
 
-Run the deployment script with the desired stage:
+Run the stage-specific deployment script:
 
 ```bash
-./deploy.sh Dev    # or ./deploy.sh Prod
+cd terraform/
+./deploy.sh Dev     # or ./deploy.sh Prod
 ```
 
-> This script runs Terraform with the appropriate `.tfvars` file and injects your stage and S3 bucket name into the EC2 startup script.
+This will:
+
+* Inject correct values into `user_data.sh.tpl`
+* Provision EC2, S3, IAM, and networking
+* Launch the app and enable automated log handling
 
 ---
 
-# 🚀 EC2 Initialization Script – `user_data.sh.tpl`
+## 🔧 EC2 Bootstrap (user\_data)
 
-This script automates the setup and deployment of the `techeazy-devops` Spring Boot application on EC2 and handles secure log uploads.
+### Actions Performed (write-only EC2):
+
+* System update + install: JDK 21, Maven, AWS CLI
+* Clone and build app from GitHub
+* Run `.jar` in background
+* Configure `systemd` shutdown hook to:
+
+  * Upload `/home/ubuntu/script.log` to S3
+  * Auto-shutdown after 60 minutes
+
+```bash
+aws s3 cp /home/ubuntu/script.log s3://<bucket-name>/app/logs/
+```
 
 ---
 
-## 📜 Actions Performed
+## 🔎 Viewing Logs from S3
 
-- System package upgrade and installation of JDK 21, Maven, AWS CLI
-- Git clone and Maven build of Spring Boot app
-- Background launch of JAR file
-- Upload of `/home/ubuntu/script.log` to private S3 bucket on shutdown
-- Systemd service to ensure graceful log uploads
-- Auto shutdown of EC2 after 60 minutes
-
----
-
-## 🔐 Viewing Logs from S3
-
-Once logs are uploaded to the S3 bucket, you can view them using your `read-only` IAM role credentials from other machine:
+Use your `readonly` credentials or EC2 instance to list and download logs:
 
 ```bash
 aws configure --profile readonly
 aws s3 ls s3://<your-bucket-name>/app/logs/ --profile readonly
-aws s3 cp s3://<your-bucket-name>/app/logs/<logfile>.log . --profile readonly
+aws s3 cp s3://<your-bucket-name>/app/logs/script.log . --profile readonly
 ```
 
+> Ensure that `readonly` IAM role or profile is used to avoid unauthorized access.
+
 ---
+
+
+## 💡 Tips
+
+* For **secure key management**, `.pem` files are saved locally with `0400` permissions.
+* Enable logging in `upload-script-log.service` to debug uploads on shutdown.
+* Use `terraform destroy` to clean up infra (includes force destroy on bucket).
+
+---
+
