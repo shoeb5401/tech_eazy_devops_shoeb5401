@@ -3,8 +3,6 @@
 exec > /home/ubuntu/script.log 2>&1
 set -x
 
-# Wait for cloud instance to be fully up and running
-sleep 30
 # Install dependencies
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y openjdk-21-jdk maven unzip
@@ -24,7 +22,7 @@ mvn clean package
 cd target
 
 # Run the JAR with logging
-nohup java -jar techeazy-devops-0.0.1-SNAPSHOT.jar &
+ nohup sudo java -jar techeazy-devops-0.0.1-SNAPSHOT.jar --server.port=80 &
 
 # Create shutdown upload script
 cat <<EOF | sudo tee /usr/local/bin/upload-script-log.sh > /dev/null
@@ -68,8 +66,8 @@ sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
 sudo systemctl enable upload-script-log.service
 
-# Auto-shutdown after 60 minutes
-nohup shutdown -h +60 &
+# Auto-shutdown after 10 minutes
+nohup sudo shutdown -h +10 &
 
 exit 0
 
