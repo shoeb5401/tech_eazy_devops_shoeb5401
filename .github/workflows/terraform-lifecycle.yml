@@ -21,49 +21,61 @@ on:
 
 jobs:
   terraform:
-    name: Terraform Lifecycle
     runs-on: ubuntu-latest
-
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ secrets.AWS_REGION }}
 
     steps:
-      - name: Checkout Repository
+      - name: 📥 Checkout
         uses: actions/checkout@v4
 
-      - name: Set Stage and Action from Inputs or Tag
+      - name: 🔧 Set Stage & Action
         id: set_vars
+
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "STAGE=${{ github.event.inputs.stage }}" >> $GITHUB_ENV
             echo "ACTION=${{ github.event.inputs.action }}" >> $GITHUB_ENV
+            echo "stage=${{ github.event.inputs.stage }}" >> $GITHUB_OUTPUT
           else
-            ref_name="${GITHUB_REF##*/}"
-            if [[ "$ref_name" == deploy-dev* ]]; then
-              echo "STAGE=Dev" >> $GITHUB_ENV
-            elif [[ "$ref_name" == deploy-prod* ]]; then
+            ref="${GITHUB_REF##*/}"
+            if [[ "$ref" == deploy-prod* ]]; then
               echo "STAGE=Prod" >> $GITHUB_ENV
+              echo "stage=Prod" >> $GITHUB_OUTPUT
             else
               echo "STAGE=Dev" >> $GITHUB_ENV
+              echo "stage=Dev" >> $GITHUB_OUTPUT
             fi
             echo "ACTION=apply" >> $GITHUB_ENV
           fi
 
-      - name: Normalize STAGE to lowercase for filenames
-        run: echo "STAGE_LOWER=$(echo $STAGE | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+      - name: 🔐 Export GH_PAT for all environments
+        run: echo "TF_VAR_gh_pat=${{ secrets.GH_PAT }}" >> $GITHUB_ENV
 
-      - name: Set up Terraform
+      - name: 🔤 Normalize Stage & Export TF_VARS
+        run: |
+          STAGE_LOWER=$(echo $STAGE | tr '[:upper:]' '[:lower:]')
+          echo "STAGE_LOWER=$STAGE_LOWER" >> $GITHUB_ENV
+          echo "TF_VAR_stage=$STAGE_LOWER"    >> $GITHUB_ENV
+          echo "TF_VAR_repo_owner=shoeb5401"  >> $GITHUB_ENV
+          echo "TF_VAR_repo_name=Secure-Repo-Config" >> $GITHUB_ENV
+
+      - name: 🛠️ Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
 
-      - name: Terraform Init
-        run: terraform init -backend-config="key=${STAGE}.tfstate"
+      - name: ⚙️ Terraform Init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+        run: terraform init -backend-config="backend-${STAGE_LOWER}.config"
         working-directory: terraform
 
-      - name: Terraform Workspace Select or Create
+      - name: 🧩 Terraform Workspace Select or Create
         run: |
           terraform workspace list
           if terraform workspace list | grep -qw "${STAGE}"; then
@@ -73,7 +85,7 @@ jobs:
           fi
         working-directory: terraform
 
-      - name: Terraform Validate and Plan
+      - name: 📝 Terraform Validate and Plan
         run: |
           terraform validate
           if [ "${ACTION}" = "destroy" ]; then
@@ -83,22 +95,17 @@ jobs:
           fi
         working-directory: terraform
 
-      - name: Terraform Apply
+      - name: 🚀 Terraform Apply
         if: env.ACTION == 'apply'
         run: terraform apply -auto-approve tfplan
         working-directory: terraform
 
-      - name: Terraform Destroy
-        if: env.ACTION == 'destroy'
-        run: terraform destroy -auto-approve -var-file="${STAGE_LOWER}_config.tfvars"
-        working-directory: terraform
-
-      - name: Debug Terraform Outputs
+      - name: 🧪 Debug Terraform Outputs
         if: env.ACTION == 'apply'
         run: terraform output
         working-directory: terraform
 
-      - name: Get EC2 Public IP
+      - name: 🌐 Get EC2 Public IP
         id: ec2_ip
         if: env.ACTION == 'apply'
         working-directory: terraform
@@ -113,13 +120,12 @@ jobs:
           echo "$EC2_IP" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
 
-      - name: Get Private Key Path
+      - name: 🔑 Get Private Key Path
         id: get_key
         if: env.ACTION == 'apply'
         run: |
           set -e
           RAW_OUTPUT=$(terraform output private_key_file)
-          # Extract and clean the key path (remove newlines, quotes, and whitespace)
           KEY_PATH=$(echo "$RAW_OUTPUT" | grep -oE '[^" ]+\.pem' | head -n1 | tr -d '\n\r\t ')
           echo "KEY_PATH=$KEY_PATH"
           echo "key_path=$KEY_PATH" >> $GITHUB_ENV
@@ -128,19 +134,16 @@ jobs:
           echo "EOF" >> "$GITHUB_OUTPUT"
         working-directory: terraform
 
-      - name: Debug key path
-        run: echo "Key Path = '${{ env.key_path }}'"
-
-      - name: SSH and Tail Logs
+      - name: 🖥️ SSH and Tail Logs
         if: env.ACTION == 'apply'
         continue-on-error: true
         working-directory: terraform
         run: |
           chmod 400 "${{ env.key_path }}"
           ssh -o StrictHostKeyChecking=no -i "${{ env.key_path }}" ubuntu@${{ steps.ec2_ip.outputs.ec2_ip }} \
-          "timeout 170 tail -f /home/ubuntu/script.log || true"
+          "timeout 170 tail -f /home/ubuntu/script.log || true "
 
-      - name: Wait for port 80 to be available
+      - name: 🌐 Wait for Port 80 (App Health Check)
         if: env.ACTION == 'apply'
         env:
           EC2_IP: ${{ steps.ec2_ip.outputs.ec2_ip }}
@@ -179,3 +182,15 @@ jobs:
 
           echo "❌ Failed: App not reachable after $MAX_ATTEMPTS attempts"
           exit 1
+
+      - name: 💣 Terraform Destroy
+        if: env.ACTION == 'destroy'
+        run: terraform destroy -auto-approve -var-file="${STAGE_LOWER}_config.tfvars"
+        working-directory: terraform
+
+      - name: 💣 Trigger Shutdown Remotely
+        if: env.ACTION == 'apply'
+        run: |
+          echo "Triggering EC2 shutdown..."
+          ssh -o StrictHostKeyChecking=no -i "${{ env.key_path }}" ubuntu@${{ steps.ec2_ip.outputs.ec2_ip }} "sudo shutdown -h +1"
+        working-directory: terraform
