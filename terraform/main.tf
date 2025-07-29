@@ -43,6 +43,7 @@ resource "aws_instance" "writeonly_instance" {
   iam_instance_profile = aws_iam_instance_profile.writeonly_profile.name
   depends_on           = [aws_iam_instance_profile.writeonly_profile, aws_s3_bucket.log_bucket]
 
+
   root_block_device {
     volume_size = var.volume_size
     volume_type = "gp3"
@@ -68,6 +69,7 @@ resource "aws_instance" "readonly_instance" {
     s3_bucket_name = var.s3_bucket_name,
     stage          = lower(var.stage)
   })
+
 
   root_block_device {
     volume_size = var.volume_size
@@ -113,6 +115,7 @@ resource "aws_security_group" "ssh_restricted" {
     Name  = "ssh-restricted-${var.stage}"
     Stage = var.stage
   }
+
 }
 
 # IAM Role for S3 Read-Only Access 
@@ -163,6 +166,7 @@ data "aws_iam_policy_document" "assume_ec2" {
 data "aws_iam_policy_document" "s3_readonly" {
   statement {
     actions = ["s3:ListBucket", "s3:GetObject"]
+
     resources = [
       aws_s3_bucket.log_bucket.arn,
       "${aws_s3_bucket.log_bucket.arn}/*"
@@ -174,6 +178,7 @@ data "aws_iam_policy_document" "s3_readonly" {
 data "aws_iam_policy_document" "s3_writeonly" {
   statement {
     actions = ["s3:PutObject"]
+
     resources = [
       "${aws_s3_bucket.log_bucket.arn}/*"
     ]
@@ -216,6 +221,7 @@ data "aws_iam_policy_document" "s3_writeonly" {
   }
 }
 
+
 # IAM Instance Profile for Write-Only Role
 resource "aws_iam_instance_profile" "writeonly_profile" {
   name = "${var.stage}-writeonly-profile"
@@ -242,6 +248,7 @@ resource "aws_iam_role_policy_attachment" "writeonly_cw_agent" {
   policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
 }
 
+
 # Private S3 Bucket
 resource "aws_s3_bucket" "log_bucket" {
   bucket = var.s3_bucket_name
@@ -251,6 +258,7 @@ resource "aws_s3_bucket" "log_bucket" {
     Purpose     = "Application logs storage"
   }
   force_destroy = true
+
 }
 
 # S3 Bucket Lifecycle Configuration
@@ -272,6 +280,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "log_lifecycle" {
 }
 
 # S3 Bucket Public Access Block
+
 resource "aws_s3_bucket_public_access_block" "block_public" {
   bucket = aws_s3_bucket.log_bucket.id
 

@@ -83,5 +83,4 @@ variable "alert_email" {
   description = "Email address for CloudWatch alarm notifications"
   type        = string
   default     = "shoeb.211618.et@mhssce.ac.in"
-
 }

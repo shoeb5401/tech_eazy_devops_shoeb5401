@@ -1,6 +1,8 @@
 # 📘 DevOps EC2 Automation with Terraform & CloudWatch Monitoring (GitHub Actions Enabled)
 
+
 This project provides a fully automated infrastructure deployment pipeline using **Terraform** and **GitHub Actions**. It provisions AWS EC2 instances, configures IAM roles, uploads logs to S3, fetches environment-based config files, ensures application health using port checks, and includes **real-time CloudWatch monitoring with automated error alerting**.
+
 
 ---
 
@@ -12,6 +14,7 @@ This project provides a fully automated infrastructure deployment pipeline using
 │   └── techeazy-devops-0.0.1-SNAPSHOT.jar     # Spring Boot JAR
 ├── config/
 │   ├── application-dev.yml                   # Dev application config
+
 │   ├── application-prod.yml                  # Prod application config
 │   └── cloudwatch-agent-config.json          # CloudWatch Agent configuration
 ├── scripts/
@@ -93,6 +96,7 @@ This project provides a fully automated infrastructure deployment pipeline using
 
 ### Enhanced Workflow Behavior
 
+
 1. Detects stage (`Dev`/`Prod`) and action (`apply`/`destroy`) using inputs or tag
 2. Loads respective `.tfvars` and backend config
 3. Initializes and validates Terraform with correct workspace
@@ -114,6 +118,7 @@ This project provides a fully automated infrastructure deployment pipeline using
 - [Terraform CLI](https://developer.hashicorp.com/terraform/downloads)
 - AWS CLI with configured profile
 - GitHub Secrets:
+
   - `AWS_ACCESS_KEY`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
   - `GH_PAT` (GitHub Personal Access Token for private repos)
 - **Valid Email Address** for CloudWatch alerts
@@ -163,6 +168,7 @@ aws s3api create-bucket \
 - Starts JAR with `nohup`
 - **Simulates test errors to verify monitoring works**
 - Adds shutdown logic:
+
   - Uploads `/home/ubuntu/script.log` to stage-based S3 folder
   - Shuts down after 10 mins
 

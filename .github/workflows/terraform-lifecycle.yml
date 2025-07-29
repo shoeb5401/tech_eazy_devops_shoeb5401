@@ -54,6 +54,7 @@ jobs:
       - name: 🔐 Export GH_PAT for all environments
         run: echo "TF_VAR_gh_pat=${{ secrets.GH_PAT }}" >> $GITHUB_ENV
 
+
       - name: 🔤 Normalize Stage & Export TF_VARS
         run: |
           STAGE_LOWER=$(echo $STAGE | tr '[:upper:]' '[:lower:]')
@@ -62,10 +63,12 @@ jobs:
           echo "TF_VAR_repo_owner=shoeb5401"  >> $GITHUB_ENV
           echo "TF_VAR_repo_name=Secure-Repo-Config" >> $GITHUB_ENV
 
+
       - name: 🛠️ Setup Terraform
         uses: hashicorp/setup-terraform@v2
         with:
           terraform_version: 1.5.0
+
 
       - name: 💾 Cache Terraform dependencies
         uses: actions/cache@v3
@@ -76,6 +79,7 @@ jobs:
             terraform-${{ runner.os }}-
 
       - name: ⚙️ Terraform Init
+
 
         run: terraform init -backend-config="backend-${STAGE_LOWER}.config"
         working-directory: terraform
@@ -141,7 +145,9 @@ jobs:
         run: |
           chmod 400 "${{ env.key_path }}"
           ssh -o StrictHostKeyChecking=no -i "${{ env.key_path }}" ubuntu@${{ steps.ec2_ip.outputs.ec2_ip }} \
+
           "timeout 200 tail -f /home/ubuntu/script.log || true "
+
 
       - name: 🌐 Wait for Port 80 (App Health Check)
         if: env.ACTION == 'apply'
@@ -192,5 +198,7 @@ jobs:
         if: env.ACTION == 'apply'
         run: |
           echo "Triggering EC2 shutdown..."
+
           ssh -o StrictHostKeyChecking=no -i "${{ env.key_path }}" ubuntu@${{ steps.ec2_ip.outputs.ec2_ip }} "sudo shutdown -h +10"
+
         working-directory: terraform

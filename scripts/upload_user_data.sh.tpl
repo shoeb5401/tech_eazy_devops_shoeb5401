@@ -4,6 +4,7 @@ set -e
 set -o pipefail
 set -x
 
+
 # Accept input variables
 stage="${stage}"
 gh_pat="${gh_pat}"
@@ -80,7 +81,6 @@ else
 fi
 EOF
 sudo chmod +x /usr/local/bin/upload-script-log.sh
-
 # Create systemd shutdown service
 sudo tee /etc/systemd/system/upload-script-log.service > /dev/null <<EOF
 [Unit]
@@ -95,7 +95,6 @@ RemainAfterExit=true
 [Install]
 WantedBy=halt.target reboot.target shutdown.target
 EOF
-
 # Reload systemd and enable shutdown service
 sudo systemctl daemon-reexec
 sudo systemctl daemon-reload
